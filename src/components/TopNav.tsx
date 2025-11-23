@@ -1,4 +1,6 @@
 import { ArrowLeft, Search, Bell, ChevronDown, Plus, X } from 'lucide-react';
+import ConnectWallet from '@/components/ConnectWallet';
+import NotificationsBell from './NotificationsBell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -154,37 +156,10 @@ export function TopNav() {
       </DropdownMenu>
 
       {/* Notifications */}
-      <Button variant="ghost" size="icon" className="relative hover:bg-primary/10">
-        <Bell className="h-5 w-5" />
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
-      </Button>
+      <NotificationsBell />
 
-      {/* User Info */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2 border-border/40 hover:bg-primary/10 hover:border-primary/50">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-sm font-medium">Sepolia</span>
-            </div>
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="bg-card border-border/40">
-          <DropdownMenuItem>
-            <div className="flex flex-col">
-              <span className="text-xs text-muted-foreground">Balance</span>
-              <span className="text-sm font-medium">0 ETH</span>
-            </div>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Wallet Address */}
-      <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/50 px-3 py-2">
-        <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary to-primary/70" />
-        <span className="font-mono text-sm">0x26...27CE</span>
-      </div>
+      {/* Wallet Connection */}
+      <ConnectWallet />
     </header>
   );
 }

@@ -1,8 +1,9 @@
 import Dashboard from './Dashboard';
+import { CONTRACT_ADDRESSES } from '@/lib/contracts';
 
 const Index = () => {
-  // This would typically come from your Web3 connection
-  const factoryAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb';
+  // Use the contract address from configuration
+  const factoryAddress = CONTRACT_ADDRESSES.CAMPAIGN_FACTORY;
   
   return <Dashboard factoryAddress={factoryAddress} />;
 };

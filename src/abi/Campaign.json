@@ -86,30 +86,6 @@
 	},
 	{
 		"anonymous": false,
-		"inputs": [],
-		"name": "CampaignActivated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [],
-		"name": "CampaignCancelled",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [],
-		"name": "CampaignDeactivated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [],
-		"name": "CampaignDonation",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
 		"inputs": [
 			{
 				"indexed": true,
@@ -282,13 +258,13 @@
 		"inputs": [
 			{
 				"indexed": false,
-				"internalType": "enum Campaign.CampaignState",
+				"internalType": "enum CampaignState",
 				"name": "oldState",
 				"type": "uint8"
 			},
 			{
 				"indexed": false,
-				"internalType": "enum Campaign.CampaignState",
+				"internalType": "enum CampaignState",
 				"name": "newState",
 				"type": "uint8"
 			},
@@ -358,35 +334,12 @@
 		"name": "acceptedToken",
 		"outputs": [
 			{
-				"internalType": "contract IERC20",
+				"internalType": "address",
 				"name": "",
 				"type": "address"
 			}
 		],
 		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "checkGoalReached",
-		"outputs": [
-			{
-				"internalType": "enum Campaign.CampaignState",
-				"name": "",
-				"type": "uint8"
-			},
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -523,122 +476,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "getCampaignDetails",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "_creator",
-				"type": "address"
-			},
-			{
-				"internalType": "string",
-				"name": "_label",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_goal",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "_paidOut",
-				"type": "bool"
-			},
-			{
-				"internalType": "enum Campaign.CampaignState",
-				"name": "_state",
-				"type": "uint8"
-			},
-			{
-				"internalType": "bytes32",
-				"name": "_metadataHash",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "address",
-				"name": "_factory",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_deadline",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_ethBalance",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_wbtcBalance",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "_tokenEnabled",
-				"type": "bool"
-			},
-			{
-				"internalType": "address",
-				"name": "_acceptedToken",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_ethUsdFeed",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_wbtcUsdFeed",
-				"type": "address"
-			},
-			{
-				"internalType": "address",
-				"name": "_wbtcEthFeed",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "getTotalRaisedInUSD",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "totalUSD",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "wbtcAmount",
-				"type": "uint256"
-			}
-		],
-		"name": "getWBTCinETH",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "goal",
+		"name": "goalUSD",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -663,7 +501,7 @@
 			},
 			{
 				"internalType": "uint256",
-				"name": "_goal",
+				"name": "_goalUSD",
 				"type": "uint256"
 			},
 			{
@@ -687,14 +525,14 @@
 				"type": "uint256"
 			},
 			{
-				"internalType": "address",
-				"name": "_token",
-				"type": "address"
-			},
-			{
 				"internalType": "bool",
 				"name": "_tokenEnabled",
 				"type": "bool"
+			},
+			{
+				"internalType": "address",
+				"name": "_token",
+				"type": "address"
 			},
 			{
 				"internalType": "address",
@@ -803,7 +641,7 @@
 		"name": "state",
 		"outputs": [
 			{
-				"internalType": "enum Campaign.CampaignState",
+				"internalType": "enum CampaignState",
 				"name": "",
 				"type": "uint8"
 			}
@@ -819,6 +657,19 @@
 				"internalType": "bool",
 				"name": "",
 				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalRaisedUSD",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -866,19 +717,6 @@
 		"name": "upgradeToAndCall",
 		"outputs": [],
 		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "wbtcEthFeed",
-		"outputs": [
-			{
-				"internalType": "contract AggregatorV3Interface",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{

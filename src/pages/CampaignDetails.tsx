@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Pause, X, Send, Wallet, DollarSign, TrendingUp, Clock, Users, CheckCircle, AlertCircle } from 'lucide-react';
+import { useWriteContract, useWaitForTransactionReceipt, useReadContract, useAccount, useWatchContractEvent, useChainId } from 'wagmi';
+import { CONTRACT_ABIS, CONTRACT_ADDRESSES } from '@/config/contracts';
+import { parseUnits, formatEther } from 'ethers';
+import { Play, Pause, X, Send, Wallet, DollarSign, TrendingUp, Clock, Users, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +13,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/components/ui/sonner';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useCampaign } from '@/hooks/useCampaign';
+import { formatCampaignState } from '@/lib/contracts';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,30 +32,15 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-interface CampaignData {
-  address: string;
-  name: string;
-  description: string;
-  creator: string;
-  admin: string;
-  goal: number;
-  raised: number;
-  ethBalance: number;
-  wbtcBalance: number;
-  status: number;
-  paidOut: boolean;
-  deadline: number;
-  tokenEnabled: boolean;
-  metadataHash: string;
-  factory: string;
-  startedDate: string;
-}
-
 const CampaignDetails = () => {
   const { address } = useParams<{ address: string }>();
   const navigate = useNavigate();
+  const { address: userAddress } = useAccount();
+  const chainId = useChainId();
 
-  const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  // Fetch campaign data from contract
+  const { campaign, loading: campaignLoading, refetch: refetchCampaign } = useCampaign(address || '');
+
   const [ethAmount, setEthAmount] = useState('');
   const [wbtcAmount, setWbtcAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,30 +54,73 @@ const CampaignDetails = () => {
   const [useFunds, setUseFunds] = useState(false);
   const [isDonation, setIsDonation] = useState(false);
 
+  const factoryAddress = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.CampaignFactory 
+    || CONTRACT_ADDRESSES[11155111].CampaignFactory;
+
+  // Check if user is admin
+  const { data: isAdmin } = useReadContract({
+    address: factoryAddress as `0x${string}`,
+    abi: CONTRACT_ABIS.CampaignFactory,
+    functionName: 'isAdmin',
+    args: userAddress ? [userAddress as `0x${string}`] : undefined,
+    query: {
+      enabled: !!userAddress,
+    },
+  });
+
+  const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash,
+  });
+
+  const processedHashRef = useRef<string | null>(null);
+
+  // Watch for contract events to update campaign data
+  useWatchContractEvent({
+    address: address as `0x${string}`,
+    abi: CONTRACT_ABIS.Campaign,
+    eventName: 'ContributionReceived',
+    onLogs() {
+      setTimeout(() => refetchCampaign(), 2000);
+    },
+  });
+
+  useWatchContractEvent({
+    address: address as `0x${string}`,
+    abi: CONTRACT_ABIS.Campaign,
+    eventName: 'StateChanged',
+    onLogs() {
+      setTimeout(() => refetchCampaign(), 2000);
+    },
+  });
+
+  useWatchContractEvent({
+    address: address as `0x${string}`,
+    abi: CONTRACT_ABIS.Campaign,
+    eventName: 'PayoutReleased',
+    onLogs() {
+      setTimeout(() => refetchCampaign(), 2000);
+    },
+  });
+
   useEffect(() => {
-    const mockCampaign: CampaignData = {
-      address: address || '',
-      name: 'Konklux Innovation Fund',
-      description: 'A revolutionary campaign to fund the next generation of blockchain innovations. This project aims to bring cutting-edge technology to market.',
-      creator: '0x1111111111111111111111111111111111111111',
-      admin: '0x2222222222222222222222222222222222222222',
-      goal: 100000,
-      raised: 23500,
-      ethBalance: 10.5,
-      wbtcBalance: 0.25,
-      status: 1,
-      paidOut: false,
-      deadline: Date.now() + 30 * 24 * 60 * 60 * 1000,
-      tokenEnabled: true,
-      metadataHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-      factory: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
-      startedDate: '2024-01-15',
-    };
+    if (isConfirmed && hash && processedHashRef.current !== hash) {
+      processedHashRef.current = hash;
+      toast.success('Transaction confirmed successfully!');
+      // Close dialog and refresh campaign data
+      setActionDialog({ open: false, action: '', title: '', description: '' });
+      setLoading(false);
+      // Clear form fields
+      setTransferAddress('');
+      setUseFunds(false);
+      setIsDonation(false);
+      setTimeout(() => {
+        refetchCampaign();
+      }, 2000);
+    }
+  }, [isConfirmed, hash, refetchCampaign]);
 
-    setCampaign(mockCampaign);
-  }, [address]);
-
-  if (!campaign) {
+  if (campaignLoading || !campaign) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -98,47 +131,81 @@ const CampaignDetails = () => {
     );
   }
 
-  const statusMap: Record<number, { label: string; variant: 'default' | 'secondary' | 'destructive'; icon: any }> = {
-    0: { label: 'Pending', variant: 'secondary', icon: Clock },
-    1: { label: 'Active', variant: 'default', icon: CheckCircle },
-    2: { label: 'Successful', variant: 'default', icon: CheckCircle },
-    3: { label: 'Failed', variant: 'destructive', icon: AlertCircle },
-    4: { label: 'Paused', variant: 'secondary', icon: Pause },
-    5: { label: 'Cancelled', variant: 'destructive', icon: X },
-    6: { label: 'Donation', variant: 'default', icon: DollarSign },
+  const statusMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive'; icon: any }> = {
+    'Active': { label: 'Active', variant: 'default', icon: CheckCircle },
+    'Paused': { label: 'Paused', variant: 'secondary', icon: Pause },
+    'Completed': { label: 'Completed', variant: 'default', icon: CheckCircle },
+    'Failed': { label: 'Failed', variant: 'destructive', icon: AlertCircle },
+    'Cancelled': { label: 'Cancelled', variant: 'destructive', icon: X },
+    'DonationOnly': { label: 'Donation Only', variant: 'default', icon: DollarSign },
   };
 
-  const status = statusMap[campaign.status] || statusMap[0];
+  const status = statusMap[campaign.statusLabel] || statusMap['Active'];
   const StatusIcon = status.icon;
-  const progress = (campaign.raised / campaign.goal) * 100;
+  const progress = campaign.goal > 0 ? (campaign.raised / campaign.goal) * 100 : 0;
   const daysLeft = Math.ceil((campaign.deadline - Date.now()) / (1000 * 60 * 60 * 24));
 
-  const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   const formatDate = (timestamp: number) => new Date(timestamp).toLocaleDateString();
+
+  // Button state logic based on campaign status
+  // Status mapping: 0 = Active, 1 = Paused, 2 = Completed, 3 = Failed, 4 = Cancelled, 5 = DonationOnly
+  const isTerminalState = campaign.status === 2 || campaign.status === 3 || campaign.status === 4; // Completed, Failed, or Cancelled
+  const canActivate = campaign.status === 1 && !isTerminalState; // Only when Paused and not in terminal state
+  const canPause = campaign.status === 0 && !isTerminalState; // Only when Active and not in terminal state
+  const canCancel = !isTerminalState && campaign.status !== 5; // Not in terminal state and not DonationOnly
+  const isCreator = userAddress?.toLowerCase() === campaign.creator.toLowerCase();
+  const isAdminUser = isAdmin === true;
+  
+  // Finalize button: only clickable if goal OR deadline is reached
+  const goalReached = campaign.raised >= campaign.goal;
+  const deadlineReached = Date.now() >= campaign.deadline;
+  const canFinalize = isCreator && (goalReached || deadlineReached) && campaign.status !== 2 && campaign.status !== 3 && campaign.status !== 4;
+  
+  // Withdraw button: only clickable after campaign is finalized (status === 2 Completed)
+  const canWithdraw = isCreator && campaign.status === 2 && !campaign.paidOut;
 
   const handleAction = (action: string, title: string, description: string) => {
     setActionDialog({ open: true, action, title, description });
   };
 
   const executeAction = async () => {
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      toast.success(`${actionDialog.title} executed successfully!`);
-      setActionDialog({ open: false, action: '', title: '', description: '' });
-
+      let functionName = '';
       if (actionDialog.action === 'activate') {
-        setCampaign(prev => prev ? { ...prev, status: 1 } : null);
+        functionName = 'Activate';
       } else if (actionDialog.action === 'pause') {
-        setCampaign(prev => prev ? { ...prev, status: 4 } : null);
+        functionName = 'Pause';
       } else if (actionDialog.action === 'cancel') {
-        setCampaign(prev => prev ? { ...prev, status: 5 } : null);
+        functionName = 'Cancel';
+      } else {
+        toast.error('Unknown action');
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      toast.error('Action failed. Please try again.');
-    } finally {
+
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: functionName as any,
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to ${actionDialog.action}: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          // Dialog will close automatically when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Action failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -149,22 +216,33 @@ const CampaignDetails = () => {
       return;
     }
 
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const amountWei = parseUnits(ethAmount, 18);
 
-      const amount = parseFloat(ethAmount);
-      setCampaign(prev => prev ? {
-        ...prev,
-        ethBalance: prev.ethBalance + amount,
-        raised: prev.raised + (amount * 2300)
-      } : null);
-
-      toast.success(`Successfully contributed ${ethAmount} ETH!`);
-      setEthAmount('');
-    } catch (error) {
-      toast.error('Contribution failed. Please try again.');
-    } finally {
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: 'contribute',
+        value: amountWei,
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to contribute: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          setEthAmount('');
+          // Will auto-refresh when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Contribution failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -175,22 +253,38 @@ const CampaignDetails = () => {
       return;
     }
 
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
+    if (!campaign.tokenEnabled) {
+      toast.error('Token contributions are not enabled for this campaign');
+      return;
+    }
+
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const amountWei = parseUnits(wbtcAmount, 18);
 
-      const amount = parseFloat(wbtcAmount);
-      setCampaign(prev => prev ? {
-        ...prev,
-        wbtcBalance: prev.wbtcBalance + amount,
-        raised: prev.raised + (amount * 45000)
-      } : null);
-
-      toast.success(`Successfully contributed ${wbtcAmount} WBTC!`);
-      setWbtcAmount('');
-    } catch (error) {
-      toast.error('Contribution failed. Please try again.');
-    } finally {
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: 'contributeWBTC',
+        args: [amountWei],
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to contribute WBTC: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          setWbtcAmount('');
+          // Will auto-refresh when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Contribution failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -201,50 +295,106 @@ const CampaignDetails = () => {
       return;
     }
 
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
+    // Transfer Creator is admin-only, not creator-only
+    if (!isAdminUser) {
+      toast.error('Only admins can transfer campaign creator ownership');
+      return;
+    }
+
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      setCampaign(prev => prev ? { ...prev, creator: transferAddress } : null);
-      toast.success('Creator transferred successfully!');
-      setTransferAddress('');
-      setActionDialog({ open: false, action: '', title: '', description: '' });
-    } catch (error) {
-      toast.error('Transfer failed. Please try again.');
-    } finally {
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: 'transferCreator',
+        args: [transferAddress as `0x${string}`],
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to transfer creator: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          setTransferAddress('');
+          // Dialog will close automatically when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Transfer failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
 
   const handleWithdraw = async () => {
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
+    if (userAddress?.toLowerCase() !== campaign.creator.toLowerCase()) {
+      toast.error('Only the campaign creator can withdraw funds');
+      return;
+    }
+
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      setCampaign(prev => prev ? { ...prev, paidOut: true } : null);
-      toast.success('Funds withdrawn successfully!');
-      setActionDialog({ open: false, action: '', title: '', description: '' });
-    } catch (error) {
-      toast.error('Withdrawal failed. Please try again.');
-    } finally {
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: 'withdrawPayout',
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to withdraw: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          // Dialog will close automatically when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Withdrawal failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
 
   const handleFinalize = async () => {
+    if (!address) {
+      toast.error('Campaign address is required');
+      return;
+    }
+
+    if (userAddress?.toLowerCase() !== campaign.creator.toLowerCase()) {
+      toast.error('Only the campaign creator can finalize the campaign');
+      return;
+    }
+
     setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      console.log('Finalizing with parameters:', { useFunds, isDonation });
-
-      toast.success(`Campaign finalized! Use Funds: ${useFunds}, As Donation: ${isDonation}`);
-      setActionDialog({ open: false, action: '', title: '', description: '' });
-      setUseFunds(false);
-      setIsDonation(false);
-    } catch (error) {
-      toast.error('Finalize failed. Please try again.');
-    } finally {
+      writeContract({
+        address: address as `0x${string}`,
+        abi: CONTRACT_ABIS.Campaign,
+        functionName: 'finalizeAfterDeadline',
+        args: [useFunds, isDonation],
+      } as any, {
+        onError: (error: any) => {
+          toast.error(`Failed to finalize: ${error.message || error.reason || 'Unknown error'}`);
+          setLoading(false);
+        },
+        onSuccess: () => {
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          setUseFunds(false);
+          setIsDonation(false);
+          // Dialog will close automatically when transaction is confirmed
+        },
+      });
+    } catch (error: any) {
+      toast.error(`Finalize failed: ${error.message || 'Unknown error'}`);
       setLoading(false);
     }
   };
@@ -252,15 +402,9 @@ const CampaignDetails = () => {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background p-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate('/')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">{campaign.name}</h1>
-            <p className="text-sm text-muted-foreground">Campaign Address: {formatAddress(campaign.address)}</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">{campaign.name}</h1>
+          <p className="text-sm text-muted-foreground">Campaign Address: {campaign.address}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -271,7 +415,7 @@ const CampaignDetails = () => {
                   <CardTitle>Campaign Overview</CardTitle>
                   <Badge variant={status.variant} className="gap-1">
                     <StatusIcon className="h-3 w-3" />
-                    {status.label}
+                    {campaign.statusLabel}
                   </Badge>
                 </div>
               </CardHeader>
@@ -279,13 +423,36 @@ const CampaignDetails = () => {
                 <div>
                   <div className="flex justify-between mb-2">
                     <span className="text-sm font-medium">Progress</span>
-                    <span className="text-sm font-semibold">{progress.toFixed(1)}%</span>
+                    <span className="text-sm font-semibold">
+                      {progress > 100 ? '100%' : progress.toFixed(1)}%
+                      {progress >= 100 && ' - Goal Reached!'}
+                    </span>
                   </div>
-                  <Progress value={progress} className="h-3" />
+                  <Progress value={progress > 100 ? 100 : progress} className="h-3" />
                   <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                    <span>${campaign.raised.toLocaleString()} raised</span>
-                    <span>${campaign.goal.toLocaleString()} goal</span>
+                    <span>
+                      ${campaign.raised.toLocaleString('en-US', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })} raised
+                    </span>
+                    <span>
+                      ${campaign.goal.toLocaleString('en-US', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })} goal
+                    </span>
                   </div>
+                  {campaign.goal > 0 && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {campaign.goal - campaign.raised > 0 
+                        ? `$${(campaign.goal - campaign.raised).toLocaleString('en-US', { 
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2 
+                          })} remaining`
+                        : 'Goal reached!'}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -325,16 +492,20 @@ const CampaignDetails = () => {
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
+                    <p className="text-muted-foreground mb-1">Campaign Address</p>
+                    <p className="font-mono text-xs break-all">{campaign.address}</p>
+                  </div>
+                  <div>
                     <p className="text-muted-foreground mb-1">Creator</p>
-                    <p className="font-mono text-xs">{campaign.creator}</p>
+                    <p className="font-mono text-xs break-all">{campaign.creator}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Admin</p>
-                    <p className="font-mono text-xs">{campaign.admin}</p>
+                    <p className="font-mono text-xs break-all">{campaign.admin}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Factory</p>
-                    <p className="font-mono text-xs">{formatAddress(campaign.factory)}</p>
+                    <p className="font-mono text-xs break-all">{campaign.factory}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground mb-1">Deadline</p>
@@ -370,13 +541,15 @@ const CampaignDetails = () => {
                         variant="outline"
                         className="gap-2"
                         onClick={() => handleAction('activate', 'Activate Campaign', 'This will activate the campaign and allow contributions.')}
-                        disabled={campaign.status === 1}
+                        disabled={!canActivate || loading || isWritePending || isConfirming}
                       >
                         <Play className="h-4 w-4" />
                         Activate
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Activate the campaign</TooltipContent>
+                    <TooltipContent>
+                      {canActivate ? 'Activate the campaign' : 'Can only activate when campaign is Paused'}
+                    </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -385,13 +558,15 @@ const CampaignDetails = () => {
                         variant="outline"
                         className="gap-2"
                         onClick={() => handleAction('pause', 'Pause Campaign', 'This will temporarily pause the campaign.')}
-                        disabled={campaign.status === 4}
+                        disabled={!canPause || loading || isWritePending || isConfirming}
                       >
                         <Pause className="h-4 w-4" />
                         Pause
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Pause the campaign</TooltipContent>
+                    <TooltipContent>
+                      {canPause ? 'Pause the campaign' : 'Can only pause when campaign is Active'}
+                    </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -400,13 +575,15 @@ const CampaignDetails = () => {
                         variant="destructive"
                         className="gap-2"
                         onClick={() => handleAction('cancel', 'Cancel Campaign', 'This will permanently cancel the campaign. This action cannot be undone.')}
-                        disabled={campaign.status === 5}
+                        disabled={!canCancel || loading || isWritePending || isConfirming}
                       >
                         <X className="h-4 w-4" />
                         Cancel
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Cancel the campaign permanently</TooltipContent>
+                    <TooltipContent>
+                      {canCancel ? 'Cancel the campaign permanently' : 'Campaign cannot be cancelled in current state'}
+                    </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -414,13 +591,16 @@ const CampaignDetails = () => {
                       <Button
                         variant="outline"
                         className="gap-2"
-                        onClick={() => handleAction('transfer', 'Transfer Creator', 'Transfer campaign ownership to a new address.')}
+                        onClick={() => handleAction('transfer', 'Transfer Creator', 'Transfer campaign ownership to a new address. Admin only.')}
+                        disabled={!isAdminUser || loading || isWritePending || isConfirming}
                       >
                         <Send className="h-4 w-4" />
-                        Transfer
+                        Transfer Creator
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Transfer creator ownership</TooltipContent>
+                    <TooltipContent>
+                      {isAdminUser ? 'Transfer creator ownership (Admin only)' : 'Only admins can transfer creator ownership'}
+                    </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -428,13 +608,22 @@ const CampaignDetails = () => {
                       <Button
                         variant="outline"
                         className="gap-2"
-                        onClick={() => handleAction('finalize', 'Finalize Campaign', 'Finalize the campaign after deadline.')}
+                        onClick={() => handleAction('finalize', 'Finalize Campaign', 'Finalize the campaign after goal or deadline is reached.')}
+                        disabled={!canFinalize || loading || isWritePending || isConfirming}
                       >
                         <CheckCircle className="h-4 w-4" />
                         Finalize
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Finalize campaign after deadline</TooltipContent>
+                    <TooltipContent>
+                      {canFinalize 
+                        ? 'Finalize campaign after goal or deadline is reached (Creator only)' 
+                        : !isCreator 
+                          ? 'Only the campaign creator can finalize'
+                          : !goalReached && !deadlineReached
+                            ? 'Goal or deadline must be reached to finalize'
+                            : 'Campaign cannot be finalized in current state'}
+                    </TooltipContent>
                   </Tooltip>
 
                   <Tooltip>
@@ -442,13 +631,23 @@ const CampaignDetails = () => {
                       <Button
                         className="gap-2"
                         onClick={() => handleAction('withdraw', 'Withdraw Funds', 'Withdraw raised funds to creator address.')}
-                        disabled={campaign.paidOut}
+                        disabled={!canWithdraw || loading || isWritePending || isConfirming}
                       >
                         <Wallet className="h-4 w-4" />
                         Withdraw
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent>Withdraw raised funds</TooltipContent>
+                    <TooltipContent>
+                      {canWithdraw 
+                        ? 'Withdraw raised funds (Creator only)' 
+                        : campaign.paidOut 
+                          ? 'Funds already withdrawn'
+                          : campaign.status !== 2
+                            ? 'Campaign must be finalized (Completed) before withdrawing'
+                            : !isCreator
+                              ? 'Only the campaign creator can withdraw'
+                              : 'Cannot withdraw at this time'}
+                    </TooltipContent>
                   </Tooltip>
                 </div>
               </CardContent>
@@ -527,7 +726,11 @@ const CampaignDetails = () => {
                     <span className="text-sm text-muted-foreground">Goal Status</span>
                   </div>
                   <span className="text-sm font-semibold">
-                    {progress >= 100 ? 'Goal Achieved!' : progress >= 75 ? 'Almost There!' : `${(100 - progress).toFixed(0)}% Remaining`}
+                    {progress >= 100 
+                      ? 'Goal Achieved!' 
+                      : progress >= 75 
+                        ? 'Almost There!' 
+                        : `${Math.max(0, (100 - progress)).toFixed(1)}% Remaining`}
                   </span>
                 </div>
                 <Separator />

@@ -76,7 +76,7 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "goal",
+				"name": "goalUSD",
 				"type": "uint256"
 			},
 			{
@@ -87,6 +87,68 @@
 			}
 		],
 		"name": "CampaignCreated",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "campaign",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "enum CampaignState",
+				"name": "newStatus",
+				"type": "uint8"
+			}
+		],
+		"name": "CampaignStatusChanged",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "campaign",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "donor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "ethAmount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "tokenAmount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "usdAmount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "GlobalDonation",
 		"type": "event"
 	},
 	{
@@ -107,6 +169,19 @@
 		],
 		"name": "OwnershipTransferred",
 		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "activeCampaignCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
 	},
 	{
 		"inputs": [
@@ -166,8 +241,27 @@
 			},
 			{
 				"internalType": "uint256",
-				"name": "goal",
+				"name": "goalUSD",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "campaignStatus",
+		"outputs": [
+			{
+				"internalType": "enum CampaignState",
+				"name": "",
+				"type": "uint8"
 			}
 		],
 		"stateMutability": "view",
@@ -206,7 +300,7 @@
 			},
 			{
 				"internalType": "uint256",
-				"name": "_goal",
+				"name": "_goalUSD",
 				"type": "uint256"
 			},
 			{
@@ -220,14 +314,14 @@
 				"type": "uint256"
 			},
 			{
-				"internalType": "address",
-				"name": "_token",
-				"type": "address"
-			},
-			{
 				"internalType": "bool",
 				"name": "_tokenEnabled",
 				"type": "bool"
+			},
+			{
+				"internalType": "address",
+				"name": "_token",
+				"type": "address"
 			},
 			{
 				"internalType": "address",
@@ -249,6 +343,72 @@
 			}
 		],
 		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getActiveCampaignCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getAllCampaigns",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "creator",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "label",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "createdAt",
+						"type": "uint256"
+					},
+					{
+						"internalType": "bytes32",
+						"name": "metadataHash",
+						"type": "bytes32"
+					},
+					{
+						"internalType": "uint256",
+						"name": "goalUSD",
+						"type": "uint256"
+					}
+				],
+				"internalType": "struct CampaignFactory.CampaignInfo[]",
+				"name": "info",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getTotalRaisedUSDPlatform",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -290,6 +450,39 @@
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "donor",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "ethAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "tokenAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "usdAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "notifyDonation",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "owner",
 		"outputs": [
@@ -323,6 +516,19 @@
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "totalRaisedUSDPlatform",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "address",
@@ -331,6 +537,24 @@
 			}
 		],
 		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "campaign",
+				"type": "address"
+			},
+			{
+				"internalType": "enum CampaignState",
+				"name": "newStatus",
+				"type": "uint8"
+			}
+		],
+		"name": "updateCampaignStatus",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
