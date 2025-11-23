@@ -14,11 +14,6 @@ interface CampaignStats {
 
 const ActiveCampaignsWidget = () => {
   const [topCampaigns, setTopCampaigns] = useState<CampaignStats[]>([]);
-  const [platformStats, setPlatformStats] = useState({
-    hourlyTotal: 0,
-    minuteTotal: 0,
-    todayTotal: 0
-  });
 
   useEffect(() => {
     const mockCampaigns: CampaignStats[] = [
@@ -65,59 +60,12 @@ const ActiveCampaignsWidget = () => {
     ];
 
     setTopCampaigns(mockCampaigns);
-    setPlatformStats({
-      hourlyTotal: 2660,
-      minuteTotal: 44.3,
-      todayTotal: 52450
-    });
-
-    const interval = setInterval(() => {
-      setPlatformStats(prev => ({
-        hourlyTotal: prev.hourlyTotal + Math.random() * 100,
-        minuteTotal: Math.random() * 50 + 20,
-        todayTotal: prev.todayTotal + Math.random() * 500
-      }));
-    }, 60000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const formatAddress = (address: string) => `${address.slice(0, 6)}...${address.slice(-4)}`;
 
   return (
-    <div className="space-y-4">
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            Platform Statistics
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-secondary/30 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Per Hour</p>
-              <p className="text-2xl font-bold text-foreground">
-                ${platformStats.hourlyTotal.toFixed(0)}
-              </p>
-            </div>
-            <div className="text-center p-4 bg-secondary/30 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Per Minute</p>
-              <p className="text-2xl font-bold text-foreground">
-                ${platformStats.minuteTotal.toFixed(1)}
-              </p>
-            </div>
-            <div className="text-center p-4 bg-secondary/30 rounded-lg">
-              <p className="text-xs text-muted-foreground mb-1">Today Total</p>
-              <p className="text-2xl font-bold text-primary">
-                ${platformStats.todayTotal.toFixed(0)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="bg-card border-border">
+    <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle>Top 5 Campaigns by Growth</CardTitle>
         </CardHeader>
@@ -160,7 +108,6 @@ const ActiveCampaignsWidget = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
   );
 };
 

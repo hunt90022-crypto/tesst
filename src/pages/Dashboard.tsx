@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Eye, TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
+import { Plus, Eye, TrendingUp, Users, DollarSign, Target, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -90,9 +90,7 @@ function Dashboard({ factoryAddress }: DashboardProps) {
   const totalCampaigns = campaigns.length;
   const activeCampaigns = campaigns.filter(c => c.status === 'Active').length;
   const totalRaised = campaigns.reduce((sum, c) => sum + (c.goal * c.progress / 100), 0);
-  const avgProgress = campaigns.length > 0 
-    ? campaigns.reduce((sum, c) => sum + c.progress, 0) / campaigns.length 
-    : 0;
+  const successfulCampaigns = campaigns.filter(c => c.progress >= 100 || c.status === 'Active' && c.progress >= 75).length;
 
   const analyticsData = [
     { month: 'Jan', growthRate: 0, avgDonation: 250, retentionRate: 45 },
@@ -136,8 +134,7 @@ function Dashboard({ factoryAddress }: DashboardProps) {
 
   return (
     <div className="bg-background p-6 space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatsCard
           icon={Users}
           title="Total Campaigns"
@@ -163,18 +160,83 @@ function Dashboard({ factoryAddress }: DashboardProps) {
           period="Month"
           iconColor="#3b82f6"
         />
-        <StatsCard
-          icon={Calendar}
-          title="Avg Progress"
-          value={`${avgProgress.toFixed(1)}%`}
-          period="Month"
-          iconColor="#f59e0b"
-        />
       </div>
 
-      {/* Active Campaigns Widget */}
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ActiveCampaignsWidget />
+        <Card className="bg-card border-border">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">Quick Stats</h3>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <TrendingUp className="h-4 w-4 text-green-500" />
+                  <p className="text-xs text-muted-foreground">Success Rate</p>
+                </div>
+                <p className="text-2xl font-bold text-foreground">
+                  {totalCampaigns > 0 ? ((successfulCampaigns / totalCampaigns) * 100).toFixed(0) : 0}%
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">{successfulCampaigns} of {totalCampaigns} campaigns</p>
+              </div>
+              <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="h-4 w-4 text-blue-500" />
+                  <p className="text-xs text-muted-foreground">Avg Duration</p>
+                </div>
+                <p className="text-2xl font-bold text-foreground">45</p>
+                <p className="text-xs text-muted-foreground mt-1">days per campaign</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-border">
+              <h4 className="text-sm font-semibold mb-3">Status Distribution</h4>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Active</span>
+                    <span className="text-xs font-semibold">{activeCampaigns}</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500"
+                      style={{ width: `${(activeCampaigns / totalCampaigns) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Paused</span>
+                    <span className="text-xs font-semibold">{campaigns.filter(c => c.status === 'Pause').length}</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-yellow-500"
+                      style={{ width: `${(campaigns.filter(c => c.status === 'Pause').length / totalCampaigns) * 100}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-muted-foreground">Cancelled</span>
+                    <span className="text-xs font-semibold">{campaigns.filter(c => c.status === 'Cancel').length}</span>
+                  </div>
+                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-red-500"
+                      style={{ width: `${(campaigns.filter(c => c.status === 'Cancel').length / totalCampaigns) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Analytics Chart and Calendar */}
@@ -202,7 +264,7 @@ function Dashboard({ factoryAddress }: DashboardProps) {
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left py-4 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                  Campaign ID
+                  Campaign Address
                 </th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   Name
@@ -228,13 +290,14 @@ function Dashboard({ factoryAddress }: DashboardProps) {
               {campaigns.slice(0, 5).map((campaign) => {
                 const statusBadge = getStatusBadge(campaign.status);
                 return (
-                  <tr 
-                    key={campaign.id} 
-                    className="border-b border-border hover:bg-secondary/50 transition-colors"
+                  <tr
+                    key={campaign.id}
+                    className="border-b border-border hover:bg-secondary/50 transition-colors cursor-pointer"
+                    onClick={() => handleViewDetails(campaign.address)}
                   >
                     <td className="py-4 px-4">
-                      <span className="font-mono text-primary font-semibold">
-                        #{campaign.id}
+                      <span className="font-mono text-sm text-primary font-semibold">
+                        {formatAddress(campaign.address)}
                       </span>
                     </td>
                     <td className="py-4 px-4">
